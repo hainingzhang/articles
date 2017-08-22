@@ -1,0 +1,62 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  namespace: $namespace
+  name: ca
+spec:
+  replicas: 1
+  strategy: {}
+  template:
+    metadata:
+      labels:
+       app: hyperledger
+       role: ca
+       org: $namespace
+       name: ca
+    spec:
+     containers:
+       - name: ca
+         image: hyperledger/fabric-ca:x86_64-1.0.0
+         env: 
+         - name:  FABRIC_CA_HOME
+           value: /etc/hyperledger/fabric-ca-server
+         - name:  FABRIC_CA_SERVER_CA_NAME
+           value: ca
+         - name:  FABRIC_CA_SERVER_TLS_ENABLED
+           value: "false"
+         - name:  FABRIC_CA_SERVER_TLS_CERTFILE
+           value: $tlsCert
+         - name:  FABRIC_CA_SERVER_TLS_KEYFILE
+           value: $tlsKey
+         ports:
+          - containerPort: 7054
+         command: ["sh"]
+         args:  ["-c", $command]
+         volumeMounts:
+          - mountPath: /etc/hyperledger/fabric-ca-server-config
+            name: certificate
+            subPath: $caPath
+     volumes:
+       - name: certificate
+         persistentVolumeClaim:
+             claimName: $pvName 
+
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+   namespace: $namespace
+   name: ca
+spec:
+ selector:
+   app: hyperledger
+   role: ca
+   org: $namespace
+   name: ca
+ type: NodePort
+ ports:
+   - name: endpoint
+     protocol: TCP
+     port: 7054
+     targetPort: 7054
+     nodePort: $nodePort

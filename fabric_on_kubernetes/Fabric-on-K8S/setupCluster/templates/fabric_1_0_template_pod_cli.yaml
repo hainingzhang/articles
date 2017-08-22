@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+    name: $artifactsName
+spec:
+    capacity:
+       storage: 500Mi
+    accessModes:
+       - ReadWriteMany
+    nfs: 
+      path: /opt/share/channel-artifacts
+      server: 10.112.122.9 #change to your nfs server ip here
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+    namespace: $namespace
+    name: $artifactsName
+spec:
+   accessModes:
+     - ReadWriteMany
+   resources:
+      requests:
+        storage: 10Mi
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+   namespace: $namespace
+   name: $name
+spec:
+  replicas: 1
+  strategy: {}
+  template:
+    metadata:
+      labels:
+       app: cli
+    spec:
+      containers:
+        - name: $name
+          image:  hyperledger/fabric-tools:x86_64-1.0.0
+          env:
+          
+          - name: CORE_PEER_TLS_ENABLED
+            value: "false"
+          #- name: CORE_PEER_TLS_CERT_FILE
+          #  value: /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1/peers/peer0.org1/tls/server.crt
+          #- name: CORE_PEER_TLS_KEY_FILE
+          #  value: /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1/peers/peer0.org1/tls/server.key
+          #- name: CORE_PEER_TLS_ROOTCERT_FILE
+          #  value: /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1/peers/peer0.org1/tls/ca.crt
+          - name: CORE_VM_ENDPOINT
+            value: unix:///host/var/run/docker.sock
+          - name: GOPATH
+            value: /opt/gopath
+          - name: CORE_LOGGING_LEVEL
+            value: DEBUG
+          - name: CORE_PEER_ID
+            value: $name
+          - name: CORE_PEER_ADDRESS
+            value: $peerAddress
+          - name: CORE_PEER_LOCALMSPID
+            value: $mspid
+          - name: CORE_PEER_MSPCONFIGPATH
+            value: /etc/hyperledger/fabric/msp
+          workingDir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+          command: [ "/bin/bash", "-c", "--" ]
+          args: [ "while true; do sleep 30; done;" ]
+          volumeMounts:
+          # - mountPath: /opt/gopath/src/github.com/hyperledger/fabric/peer
+          #   name: certificate
+          #   subPath: scripts
+           - mountPath: /host/var/run/
+             name: run
+          # - mountPath: /opt/gopath/src/github.com/hyperledger/fabric/examples/chaincode/go
+          #   name: certificate
+          #   subPath: chaincode
+           - mountPath: /etc/hyperledger/fabric/msp
+             name: certificate
+             subPath: $mspPath
+           - mountPath: /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
+             name: artifacts
+      volumes:
+        - name: certificate
+          persistentVolumeClaim:
+              claimName: $pvName
+        - name: artifacts
+          persistentVolumeClaim:
+              claimName: $artifactsName
+        - name: run
+          hostPath:
+            path: /var/run 
